@@ -1,0 +1,36 @@
+from abc import ABC,abstractmethod
+import datetime
+
+class Bank:
+    def __init__(self, name, bank_swift_code):
+        self.name = name
+        self.bank_swift_code = bank_swift_code
+        self.customers = []
+        
+class Customer:
+    def __init__(self, name, address, phone_number, email):
+        self.name = name
+        self.address = address
+        self.phone_number = phone_number
+        self.email = email
+        self.accounts = []
+        
+class Account:
+    def __init__(self, account_number):
+        self.account_number = account_number
+        self.balance = 0
+        self.linked_card = None
+        self.transaction_history = []
+        
+
+class Card:
+    def __init__(self, name, pin):
+        self.name = name
+        self.pin = pin
+        
+class Atm:
+    def __init__(self, bank, atm_location):
+        self.bank = bank
+        self.atm_location = atm_location
+        
+        
