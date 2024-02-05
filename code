@@ -9,6 +9,13 @@ class Bank:
         
     def add_customer(self, customer):
         self.customers.append(customer)    
+        
+    def authenticate(self, card_number, pin):
+        for customer in self.customers:
+            for account in customer.accounts:
+                if account.linked_card.number == card_number and account.linked_card.pin == pin:
+                    return account
+        return None          
 
 class Customer:
     def __init__(self, name, address, phone_number, email):
@@ -32,7 +39,15 @@ class Account:
         self.linked_card= card    
     
     def add_transaction(self, transaction):
-        self.transaction_history.append(transaction)    
+        self.transaction_history.append(transaction)   
+    
+    def display_transaction_history(self):
+        if not self.transaction_history:
+            print("No transactions available")
+            return
+        
+        for transaction in self.transaction_history:
+            print(transaction.transaction_id, transaction.transaction_type, transaction.amount, transaction.timestamp)     
 
 
 class Card:
@@ -40,13 +55,59 @@ class Card:
         self.number = number
         self.pin = pin
 
-class Atm:
+class ATM:
     def __init__(self, bank, atm_location):
         self.bank = bank
         self.atm_location = atm_location
         
     def insert_card(self, card):
-        pin = input("Please enter yout PIN code")
+        pin = input("Please enter yout PIN code: ")
+        account = self.bank.authenticate(card.number, pin)
+        if account:
+            self.display_main_menu(account)
+        else:
+            print("Invalid card or PIN")
+            return None 
+        
+    def display_main_menu(self, account):
+        message = """
+        1. Withdraw
+        2. Deposit
+        3. Balance Inquiry
+        4. View Transactions
+        5. Exit
+        Choose an option: """
+        while True:
+            choice = input(message)
+            if choice == "5":
+                print("Card Ejecting .... ")
+                print("GOODBYE")
+                break 
+            self.handle_transaction(choice, account)
+                    
+    def handle_transaction(self, choice, account):
+        transaction = None
+        try:
+            match choice:
+                case "1":
+                    amount = int(input("Enter amount to withdraw: "))
+                    transaction  = WithdrawTransaction(amount)
+                case "2":
+                    amount = int(input("Enter amount to Deposit: "))
+                    transaction  = DepositTransaction(amount)
+                case "3":
+                    transaction = BalanceInquiry()
+                case "4":
+                    account.display_transaction_history()
+                case _:
+                    print("Invalid Choice")  
+            if transaction:         
+                transaction.execute(account)  # perfect exapmle of the polymorphism principle          
+        except ValueError:
+            print("Invalid amount enteredn Please try again. ")
+                        
+                
+                
         
         
         
@@ -63,7 +124,7 @@ class Transaction(ABC):
     def execute(self):
         pass     
     
-class withdrawTransaction(Transaction):
+class WithdrawTransaction(Transaction):
     def __init__(self, amount):
         super().__init__("withdraw", amount)
         self.amount = amount
@@ -76,7 +137,7 @@ class withdrawTransaction(Transaction):
         else:
             print("Insufficent funds")
 
-class depositTransaction(Transaction):
+class DepositTransaction(Transaction):
     def __init__(self, amount):
         super().__init__("deposit", amount)
         self.amount = amount
@@ -86,7 +147,7 @@ class depositTransaction(Transaction):
         print(f"Deposit successful, you new balance {account.balance}")
         account.add_transaction(self)
         
-class balanceInquiry(Transaction):
+class BalanceInquiry(Transaction):
     def __init__(self):
         super().__init__("balance inquiry")
         
@@ -108,6 +169,10 @@ print(customer_1.accounts)
 card_1 = Card("1255544665888", "1111") 
 account_1.link_card(card_1)
 print(account_1.linked_card.number)       
+print(account_1.linked_card.pin)    
+
+atm = ATM(my_bank, "Elgiza")
+atm.insert_card(card_1)
     
             
         
