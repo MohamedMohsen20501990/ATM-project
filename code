@@ -1,32 +1,37 @@
 from abc import ABC,abstractmethod
 import datetime
+import os
+from enum import Enum
+import uuid
+
+
+#enums enumerations 
+class TransactionType(Enum):
+    WITHDRAW = "Withdraw"
+    DEPOSIT = "Deposit"
+    BALANCE_INAUIRY = "Balance Inquiery"
+    TRANSFER = "Transfer"
 
 class Bank:
     def __init__(self, name, bank_swift_code):
         self.name = name
         self.bank_swift_code = bank_swift_code
-        self.customers = []
+        self.accounts = {}
         
     def add_customer(self, customer):
-        self.customers.append(customer)    
-        
-    def authenticate(self, card_number, pin):
-        for customer in self.customers:
-            for account in customer.accounts:
-                if account.linked_card.number == card_number and account.linked_card.pin == pin:
-                    return account
-        return None          
-
+        for account in customer.accounts.values():
+            self.accounts[account.account_number] = account  
+                              
 class Customer:
     def __init__(self, name, address, phone_number, email):
         self.name = name
         self.address = address
         self.phone_number = phone_number
         self.email = email
-        self.accounts = []
+        self.accounts = {}
     
     def add_account(self, account):
-        self.accounts.append(account)    
+        self.accounts[account.account_number] = account   
 
 class Account:
     def __init__(self, account_number):
@@ -45,29 +50,71 @@ class Account:
         if not self.transaction_history:
             print("No transactions available")
             return
-        
+        print("Printing transaction history: \n")
         for transaction in self.transaction_history:
-            print(transaction.transaction_id, transaction.transaction_type, transaction.amount, transaction.timestamp)     
-
+            print(f"Transaction ID: {transaction.transaction_id}\nTransaction Type: {transaction.transaction_type.value}\nTransaction Amount {transaction.amount}\nTime: {transaction.timestamp}\n")     
 
 class Card:
     def __init__(self, number, pin):
         self.number = number
-        self.pin = pin
+        self.__pin = pin
+        
+    # getter for the pin
+    def get_pin(self):
+        return self.__pin  
+    # pin setter
+    def set_pin(self, old_pin, new_pin):
+        if self.__pin == old_pin:
+            self.__pin == new_pin
+            return True
+        else:
+            return False
+                    
+        
+class Keypad:
+    def get_input(self, message):
+        return input(message)        
+        
+class Screen:
+    def show_message(self, message):
+        print(message)
+    
+    def clear_screen(slef):
+        os.system('cls' if os.name == "nt" else 'clear')    
 
+# single responsibility principle        
+class CardReader:
+    def __init__(self,atm, bank):
+        self.authenticator = Authenticator(bank)
+        self.atm = atm
+        
+    def insert_card(self, card):
+        pin = self.atm.keypad.get_input("Please enter yout PIN code: ")
+        account = self.authenticator.authenticate(card.number, pin)
+        if account:
+            self.atm.display_main_menu(account)
+        else:
+            self.atm.screen.show_message("Invalid card or PIN")
+            return None     
+        
+# single responsibility principle    
+class Authenticator:
+    def __init__(self, bank):
+        self.bank = bank
+    def authenticate(self, card_number, pin):
+        for account in self.bank.accounts.values():
+            if account.linked_card and account.linked_card.number == card_number and account.linked_card.get_pin() == pin:
+                return account
+        return None
+                                
 class ATM:
     def __init__(self, bank, atm_location):
         self.bank = bank
         self.atm_location = atm_location
+        self.keypad = Keypad()
+        self.screen = Screen()
         
-    def insert_card(self, card):
-        pin = input("Please enter yout PIN code: ")
-        account = self.bank.authenticate(card.number, pin)
-        if account:
-            self.display_main_menu(account)
-        else:
-            print("Invalid card or PIN")
-            return None 
+    
         
     def display_main_menu(self, account):
         message = """
@@ -78,10 +125,10 @@ class ATM:
         5. Exit
         Choose an option: """
         while True:
-            choice = input(message)
+            choice = self.keypad.get_input(message)
             if choice == "5":
-                print("Card Ejecting .... ")
-                print("GOODBYE")
+                self.screen.show_message("Card Ejecting .... ")
+                self.screen.show_message("GOODBYE")
                 break 
             self.handle_transaction(choice, account)
                     
@@ -90,33 +137,30 @@ class ATM:
         try:
             match choice:
                 case "1":
-                    amount = int(input("Enter amount to withdraw: "))
+                    amount = int(self.keypad.get_input("Enter amount to withdraw: "))
                     transaction  = WithdrawTransaction(amount)
                 case "2":
-                    amount = int(input("Enter amount to Deposit: "))
+                    amount = int(self.keypad.get_input("Enter amount to Deposit: "))
                     transaction  = DepositTransaction(amount)
                 case "3":
                     transaction = BalanceInquiry()
                 case "4":
                     account.display_transaction_history()
                 case _:
-                    print("Invalid Choice")  
+                    self.screen.show_message("Invalid Choice")  
             if transaction:         
-                transaction.execute(account)  # perfect exapmle of the polymorphism principle          
+                transaction.execute(account)  # perfect exapmle of the polymorphism principle  
+            self.keypad.get_input("\n press enter to continue ...")
+            self.screen.clear_screen()            
         except ValueError:
-            print("Invalid amount enteredn Please try again. ")
-                        
-                
-                
-        
-        
-        
+            self.screen.show_message("Invalid amount enteredn Please try again. ")
+                           
 class Transaction(ABC):
-    transaction_counter = 0
+    
+    
     def __init__(self, transaction_type, amount=None):
-        self.transaction_id = Transaction.transaction_counter
+        self.transaction_id = uuid.uuid4()
         self.timestamp = datetime.datetime.now()
-        Transaction.transaction_counter +=1
         self.transaction_type = transaction_type
         self.amount = amount
         
@@ -126,7 +170,7 @@ class Transaction(ABC):
     
 class WithdrawTransaction(Transaction):
     def __init__(self, amount):
-        super().__init__("withdraw", amount)
+        super().__init__(TransactionType.WITHDRAW, amount)
         self.amount = amount
     # polymorphism
     def execute(self, account):
@@ -139,7 +183,7 @@ class WithdrawTransaction(Transaction):
 
 class DepositTransaction(Transaction):
     def __init__(self, amount):
-        super().__init__("deposit", amount)
+        super().__init__(TransactionType.DEPOSIT, amount)
         self.amount = amount
         
     def execute(self, account):
@@ -149,9 +193,10 @@ class DepositTransaction(Transaction):
         
 class BalanceInquiry(Transaction):
     def __init__(self):
-        super().__init__("balance inquiry")
+        super().__init__(TransactionType.BALANCE_INAUIRY, amount=0)
         
     def execute(self,account):
+        self.amount=account.balance 
         print(f"your balance is {account.balance}")
         account.add_transaction(self)
         
@@ -163,16 +208,18 @@ account_1 = Account("12345")
 customer_1.add_account(account_1)      
 my_bank.add_customer(customer_1)
 
-print(my_bank.customers[0].name)
+
 print(customer_1.accounts)  
         
 card_1 = Card("1255544665888", "1111") 
 account_1.link_card(card_1)
 print(account_1.linked_card.number)       
-print(account_1.linked_card.pin)    
+
 
 atm = ATM(my_bank, "Elgiza")
-atm.insert_card(card_1)
+card_reader = CardReader(atm, my_bank)
+card_reader.insert_card(card_1)
+
     
             
         
